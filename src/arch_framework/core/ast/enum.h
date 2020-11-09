@@ -38,19 +38,23 @@ enum OperateType {
     kLEFTPARENTHESIS = 15,   //(
     kRIGHTPARENTHESIS = 16,  //)
     kMOD = 17,
-    kFUNC1 = 18,    // 1参数，一个返回值
-    kFUNC2 = 19,    // 2参数，一个返回值
-    kFUNC3 = 20,    // 3参数，一个返回值
-    kFUNC4 = 21,    // 3参数，一个返回值
-    kFUNC5 = 22,    // 3参数，一个返回值
-    kVEC = 23,      // 一个数组，暂时只支持常量
-    kSET = 24,      // 一个集合，暂时只支持常量
-    kPOW = 25,      // 2 ^ 3 = 8
-    kASIGN = 26,    // 赋值
-    kBRANCH = 27,   // 逗号
-    kTERNARY = 28,  // 条件运算符
-    kCONST = 29,    // 常量
-    kVAR = 30,      // 变量
+    kFUNC0 = 18,  // 0参数，一个返回值
+    kFUNC1 = 19,  // 1参数，一个返回值
+    kFUNC2 = 20,  // 2参数，一个返回值
+    kFUNC3 = 21,  // 3参数，一个返回值
+    // kFUNC4 = 22,    // 3参数，一个返回值
+    // kFUNC5 = 23,    // 3参数，一个返回值
+    kVEC = 24,      // 一个数组，暂时只支持常量
+    kSET = 25,      // 一个集合，暂时只支持常量
+    kPOW = 26,      // 2 ^ 3 = 8
+    kASIGN = 27,    // 赋值
+    kBRANCH = 28,   // 分号
+    kTERNARY = 29,  // 条件运算符
+    kCONST = 30,    // 常量
+    kVAR = 31,      // 变量
+    // ToDo: 自定义函数
+    kMAX = 32,  // 最大值
+    kMIN = 33,  // 最小值
 };
 
 enum ValueType {
@@ -135,4 +139,14 @@ inline ValueType get_value_type(const std::type_info& ti) {
         vt = vSetString;
     }
     return vt;
+}
+
+template <typename T>
+std::string get_type_name() {
+    auto vt = get_value_type(typeid(T));
+    return std::to_string(static_cast<int>(vt));
+}
+
+inline std::string get_type_name(ValueType vt) {
+    return std::to_string(static_cast<int>(vt));
 }

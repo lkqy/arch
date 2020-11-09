@@ -28,14 +28,15 @@ struct SimpleObjBinaryOp {
             a -= 5;
         if (b >= 6 and b <= 10)
             b -= 5;
+
         std::vector<int> ids = {
                 0, 1, 3, 3, 0, 1, 1, 3, 3, 1, 3, 3, 3, 3, 2, 3, 3, 3, 3, 3, 0, 1, 2, 3, 4,
         };
-        auto id = ids[a * 5 + b];
+        auto id = ids[(a - 1) * 5 + b - 1];
         if (has_vec) {
             id += 5;
         }
-        return static_cast<ValueType>(id);
+        return static_cast<ValueType>(id + 1);
     }
     std::unordered_map<int, void(*)(int64_t, int64_t, int64_t)> OPS = {
         {0, [](int64_t a, int64_t b, int64_t c) {
@@ -1744,7 +1745,6 @@ struct AssignOp {
             return true;
         if (v1 == vStrings and v2 == vStrings)
             return true;
-        std::cout << "not support assign, a:" << a << ", b:" << b << "\n";
         return false;
     }
     auto fun(ValueType v1, ValueType v2) {
@@ -1763,7 +1763,6 @@ struct AssignOp {
         if (v1 == vStrings) {
             id = 51;
         }
-        std::cout << "assign id:" << id << "\n";
         return OPS[id];
     }
     auto result_type(ValueType v1, ValueType v2) {
@@ -1882,7 +1881,6 @@ struct AssignOp {
              [](int64_t a, int64_t b, int64_t c) {
                  auto _a = (double*)a;
                  auto _b = (double*)b;
-                 //std::cout<<a<<" , "<<b<<" "<<c<<" "<<*_a<<" "<<*_b<<"\n";
                  *_a = *_b;
              }},
             {19,

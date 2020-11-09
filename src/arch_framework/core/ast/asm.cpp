@@ -5,11 +5,11 @@
 #include "op.h"
 
 template <typename OP>
-bool add_instruction(AstNode& node, asmjit::x86::Compiler& cc, OP& op) {
+bool add_instruction(AstNode& node, asmjit::x86::Compiler& cc, OP& op, std::ostrstream& logger) {
     auto n0 = node.nodes[0];
     auto n1 = node.nodes[1];
     if (not op.support(n0->value_type, n1->value_type)) {
-        std::cout << "not support:" << n0->value_type << ", " << n1->value_type << "\n";
+        logger << "not support " << typeid(OP).name() << "(" << n0->value_type << ", " << n1->value_type << ").";
         return false;
     }
     node.value_type = op.result_type(n0->value_type, n1->value_type);
@@ -49,10 +49,33 @@ struct modulus {
     }
 };
 
+struct max {
+    template <typename T, typename H>
+    constexpr auto operator()(T lhs, H rhs) const {
+        return (lhs >= rhs) ? lhs : rhs;
+    }
+};
+
+struct min {
+    template <typename T, typename H>
+    constexpr auto operator()(T lhs, H rhs) const {
+        return (lhs <= rhs) ? lhs : rhs;
+    }
+};
+
+struct if3 {
+    template <typename M, typename T, typename H>
+    constexpr auto operator()(const M& m, const T& lhs, const H& rhs) const {
+        return m ? lhs : rhs;
+    }
+};
+
 SimpleObjBinaryOp<std::plus<>> plus;
 SimpleObjBinaryOp<std::minus<>> minus;
 SimpleObjBinaryOp<std::multiplies<>> multiplies;
 SimpleObjBinaryOp<std::divides<>> divides;
+SimpleObjBinaryOp<max> _max;
+SimpleObjBinaryOp<min> _min;
 SimpleObjBinaryOp<modulus> _modulus;
 SimpleObjBinaryOp<power> _power;
 SimpleObjBinaryOp<std::equal_to<>> equal_to;
@@ -71,7 +94,7 @@ SetObjBinaryOp in_op;
 StringSetObjBinaryOp string_in_op;
 AssignOp assign_op;
 
-bool load_instruction_op(AstNode& node, asmjit::x86::Compiler& cc) {
+bool load_instruction_op(AstNode& node, asmjit::x86::Compiler& cc, std::ostrstream& logger) {
     // SimpleObjBinaryOp<std::logical_not<>> logical_not;
     switch (node.operator_type) {
         case kCONST: {
@@ -82,57 +105,57 @@ bool load_instruction_op(AstNode& node, asmjit::x86::Compiler& cc) {
             // no op
         }; break;
         case kASIGN: {
-            if (not add_instruction(node, cc, assign_op)) {
+            if (not add_instruction(node, cc, assign_op, logger)) {
                 return false;
             }
         }; break;
         case kADD: {
-            if (not add_instruction(node, cc, plus)) {
+            if (not add_instruction(node, cc, plus, logger)) {
                 return false;
             }
         }; break;
         case kSUB: {
-            if (not add_instruction(node, cc, minus)) {
+            if (not add_instruction(node, cc, minus, logger)) {
                 return false;
             }
         }; break;
         case kMUL: {
-            if (not add_instruction(node, cc, multiplies)) {
+            if (not add_instruction(node, cc, multiplies, logger)) {
                 return false;
             }
         }; break;
         case kDIV: {
-            if (not add_instruction(node, cc, divides)) {
+            if (not add_instruction(node, cc, divides, logger)) {
                 return false;
             }
         }; break;
         case kEQUAL: {
-            if (not add_instruction(node, cc, equal_to)) {
+            if (not add_instruction(node, cc, equal_to, logger)) {
                 return false;
             }
         }; break;
         case kNOTEQUAL: {
-            if (not add_instruction(node, cc, not_equal_to)) {
+            if (not add_instruction(node, cc, not_equal_to, logger)) {
                 return false;
             }
         }; break;
         case kGREATE: {
-            if (not add_instruction(node, cc, greater)) {
+            if (not add_instruction(node, cc, greater, logger)) {
                 return false;
             }
         }; break;
         case kLOWER: {
-            if (not add_instruction(node, cc, less)) {
+            if (not add_instruction(node, cc, less, logger)) {
                 return false;
             }
         }; break;
         case kGREATEOREQUAL: {
-            if (not add_instruction(node, cc, greater_equal)) {
+            if (not add_instruction(node, cc, greater_equal, logger)) {
                 return false;
             }
         }; break;
         case kLOWEROREQUAL: {
-            if (not add_instruction(node, cc, less_equal)) {
+            if (not add_instruction(node, cc, less_equal, logger)) {
                 return false;
             }
         }; break;
@@ -140,23 +163,35 @@ bool load_instruction_op(AstNode& node, asmjit::x86::Compiler& cc) {
             auto v0 = node.nodes[0]->value_type;
             auto v1 = node.nodes[1]->value_type;
             if (v0 == vString or v0 == vStrings) {
-                if (not add_instruction(node, cc, string_in_op)) {
+                if (not add_instruction(node, cc, string_in_op, logger)) {
                     return false;
                 }
-            } else if (not add_instruction(node, cc, in_op)) {
+            } else if (not add_instruction(node, cc, in_op, logger)) {
                 return false;
             }
         }; break;
         case kPOW: {
-            if (not add_instruction(node, cc, _power)) {
+            if (not add_instruction(node, cc, _power, logger)) {
                 return false;
             }
         }; break;
         case kMOD: {
-            if (not add_instruction(node, cc, _modulus)) {
+            if (not add_instruction(node, cc, _modulus, logger)) {
                 return false;
             }
         }; break;
+        case kMAX: {
+            if (not add_instruction(node, cc, _max, logger)) {
+                return false;
+            }
+        }; break;
+        case kMIN: {
+            if (not add_instruction(node, cc, _min, logger)) {
+                return false;
+            }
+        }; break;
+        case kBRANCH:
+            break;
         default:
             return false;
             break;

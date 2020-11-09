@@ -1,0 +1,17 @@
+# 目标
+
+让业务架构更灵活、降低业务的痛点
+- 架构和业务彻底分离
+- 业务逻辑收敛到同一个地方
+- 性能不降低
+
+
+# 思路
+
+https://bytedance.feishu.cn/docs/doccnlCc8IFV5pv6iTmWbKuKGlc
+
+
+
+# 依赖
+
+c++17

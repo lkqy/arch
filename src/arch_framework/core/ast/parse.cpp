@@ -1,4 +1,5 @@
 #include <unordered_map>
+#include <iostream>
 #include "parse.h"
 
 static std::unordered_map<std::string, OperateType> _operator_map = {

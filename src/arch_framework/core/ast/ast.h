@@ -1,6 +1,7 @@
 #pragma once
 
 #include <queue>
+#include <strstream>
 #include <iostream>
 #include <memory>
 #include <functional>
@@ -25,11 +26,10 @@ struct AstNode {
     OperateType operator_type;
     ValueType value_type;
     std::string result_varible;
+
     //操作数
     std::vector<AstNode*> nodes;
 
-    // asm 使用
-    // asmjit::x86::Mem data;
     asmjit::x86::Gp data_pointer;
     size_t data_offset;  // 地址偏移
 
@@ -39,8 +39,13 @@ struct AstNode {
         }
         visitor(*this);
     }
-
-    void init_mem() {
+    bool dfs_bool(std::function<bool(AstNode&)> visitor) {
+        for (auto n : nodes) {
+            auto ret = n->dfs_bool(visitor);
+            if (not ret)
+                return ret;
+        }
+        return visitor(*this);
     }
 
     void print(int depth) {
@@ -67,30 +72,33 @@ public:
         // 返回地址偏移
         return 0;
     }
+    std::string error_log() {
+        logger.freeze(false);
+        return std::string(logger.str(), logger.pcount());
+    }
 
     bool init(const std::string& expression) {
         std::unordered_set<std::string> varible_names;
         std::queue<std::pair<std::string, int>> queue;
-        if (build_visit_queue(expression, queue)) {
-            size_t q_size = queue.size();
-            auto expression_root = build_expression_tree(queue, varible_names);
-            if (expression_root) {
-                _status_log += "init expression success";
-                _node = expression_root;
-                return true;
-            } else {
-                _status_log += " -> init node tree failed";
-            }
-        } else {
-            _status_log += " -> init expression failed";
+        if (not build_visit_queue(expression, queue)) {
+            return false;
         }
-        return false;
+        size_t q_size = queue.size();
+        auto expression_root = build_expression_tree(queue, varible_names);
+        if (not expression_root) {
+            return false;
+        }
+        _node = expression_root;
+        return true;
     }
     void print() {
         _node->print(0);
     }
     void dfs(std::function<void(AstNode&)> visitor) {
         _node->dfs(visitor);
+    }
+    bool dfs_bool(std::function<bool(AstNode&)> visitor) {
+        return _node->dfs_bool(visitor);
     }
     size_t offset(const std::string& var) {
         return _offsets[var];
@@ -116,7 +124,7 @@ private:
             const char* p = nullptr;
             std::string token = next_token(start, &p, cur_type, pre_type);
             if (token == "in" and pre_token == "not") {
-                _status_log += " not support 'not in'";
+                logger << "not support [ not in ] operation. ";
                 return false;
             }
             pre_type = cur_type;
@@ -169,7 +177,7 @@ private:
                     }
                 }
                 if (!find) {
-                    _status_log += "Error: function parentheses mismatched";
+                    logger << "function parentheses mismatched. ";
                     return false;
                 }
             } else if (token == "(") {
@@ -192,7 +200,7 @@ private:
                     }
                 }
                 if (!find) {
-                    _status_log += "Error: parentheses mismatched";
+                    logger << "parentheses mismatched. ";
                     return false;
                 }
                 if (!stack.empty()) {
@@ -203,17 +211,20 @@ private:
                         stack.pop();
                         params_number = stack_op_count.top();
                         stack_op_count.pop();
+                    } else {
+                        // 如果不是函数，操作数要累加1
+                        stack_op_count.top() += 1;
                     }
                 }
             } else {
-                _status_log += "Error expression: unknown token:" + token;
+                logger << "unknown token [" << token << "]. ";
                 return false;
             }
             pre_token = token;
         }
         while (!stack.empty()) {
             if (stack.top().first == "(" || stack.top().first == ")") {
-                _status_log += "Error: parentheses mismatched";
+                logger << "parentheses mismatched. ";
                 return false;
             }
             queue.push(stack.top());
@@ -228,7 +239,7 @@ private:
         std::stack<AstNode*> stack;
         int temporal_varible_index = 0;
 
-        static std::unordered_map<int, OperateType> function_map = {{1, kFUNC1}, {2, kFUNC2}, {3, kFUNC3}};
+        static std::unordered_map<int, OperateType> function_map = {{0, kFUNC0}, {1, kFUNC1}, {2, kFUNC2}, {3, kFUNC3}};
 
         auto asign_nodes = [&](AstNode* node, int op_count) {
             std::stack<AstNode*> temp_stack;
@@ -262,7 +273,7 @@ private:
         auto process_operator = [&](const auto& token) {
             size_t count = op_arg_count(token);
             if (stack.size() < count) {
-                _status_log += "  operator count is wrong" + std::to_string(stack.size()) + " " + std::to_string(count);
+                logger << "operator count is wrong:" << std::to_string(stack.size()) << " vs " << count << ". ";
                 return false;
             }
             auto node = new AstNode();
@@ -275,12 +286,19 @@ private:
 
         auto process_function = [&](auto& token, int param_number) {
             long stack_size = stack.size();
-            if (stack_size < param_number)
+            if (stack_size < param_number) {
+                logger << "function params count [" << param_number << "] is not right. ";
                 return false;
+            }
             auto node = new AstNode();
             node->result_varible = token;
             // ToDo: 解决函数问题
-            node->operator_type = function_map[param_number];
+            auto it = function_map.find(param_number);
+            if (it == function_map.end()) {
+                logger << "function params count [" << param_number << "] is not right. ";
+                return false;
+            }
+            node->operator_type = it->second;
             asign_nodes(node, param_number);
             return true;
         };
@@ -289,29 +307,31 @@ private:
             ++temporal_varible_index;
             const std::pair<std::string, int>& token = queue.front();
             if (token.second == tConst) {
-                if (!process_const(token.first))
+                if (!process_const(token.first)) {
+                    logger << "process const failed [" << token.first << "]. ";
                     return nullptr;
+                }
             } else if (token.second == tOperator) {
                 if (!process_operator(token.first)) {
-                    _status_log += "operator '" + token.first + "' missing valid operant";
+                    logger << "operator [" << token.first << "] not support. ";
                     return nullptr;
                 }
             } else if (token.second == tVarible) {
                 if (_offsets.find(token.first) == _offsets.end()) {
-                    _status_log += " missing varible:" + token.first;
+                    logger << "missing varible [" << token.first << "]. ";
                     return nullptr;
                 }
                 if (!process_varible(token.first)) {
-                    _status_log += " invalid varible:" + token.first;
+                    logger << "invalid varible [" << token.first << "]. ";
                     return nullptr;
                 }
             } else if (token.second >= tFunctionBeginIndex) {  //按函数处理
                 if (!process_function(token.first, token.second - tFunctionBeginIndex)) {
-                    _status_log += " invalid function:" + token.first;
+                    // logger<<"invalid function ["<<token.first<<"]. ";
                     return nullptr;
                 }
             } else {
-                _status_log += "eror_type:" + token.first + " " + std::to_string(token.second);
+                logger << "error type [" << token.first << "]. ";
                 return nullptr;
             }
             queue.pop();
@@ -319,13 +339,13 @@ private:
         if (stack.size() == 1) {
             return stack.top();
         }
-        std::string elements = "";
+        std::string elements;
         while (stack.size() > 1) {
             stack.pop();
-            elements += "'" + stack.top()->result_varible + "' ";
+            elements += "'" + stack.top()->result_varible + "'";
         }
 
-        _status_log += " dangling elements [" + elements + "]";
+        logger << "dangling elements [" << elements << "]. ";
         return nullptr;
     }
 
@@ -335,5 +355,5 @@ private:
     std::unordered_map<std::string, ValueType> _var_type;
 
     std::string _expression;
-    std::string _status_log;
+    std::ostrstream logger;
 };

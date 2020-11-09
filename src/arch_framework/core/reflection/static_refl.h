@@ -12,6 +12,8 @@
 #include <utility>
 #include <cstddef>
 #include <sstream>
+#include <vector>
+#include <unordered_map>
 #include "meta_macro.h"
 
 #define FIELD_EACH(i, arg)                    \
@@ -81,6 +83,57 @@ inline constexpr void for_each_type(T&& obj, F&& f, std::index_sequence<Is...>) 
 template <typename T, typename F>
 inline constexpr void for_each_type(T&& obj, F&& f) {
     for_each_type(std::forward<T>(obj), std::forward<F>(f), std::make_index_sequence<std::decay_t<T>::_field_count_>{});
+}
+
+template <typename T>
+void _dump_obj(std::unordered_map<std::string, T>& obj, std::stringstream& ss, const char* fieldName = "") {
+    if (*fieldName) {
+        ss << '"' << fieldName << "\":{";
+    } else {
+        std::cout << "{";
+    }
+    int count = 0;
+
+    for (auto& it : obj) {
+        if (count > 0) {
+            ss << ",";
+        }
+        ss << "\"" << it.first << "\":";
+        if
+            constexpr(std::is_class_v<std::decay_t<T>>) {
+                _dump_obj(it.second, ss);
+            }
+        else {
+            ss << it.second;
+        }
+        count += 1;
+    }
+    ss << "}";
+}
+
+template <typename T>
+void _dump_obj(std::vector<T>& obj, std::stringstream& ss, const char* fieldName = "") {
+    if (*fieldName) {
+        ss << '"' << fieldName << "\":[";
+    } else {
+        std::cout << "[";
+    }
+    int count = 0;
+
+    for (auto& v : obj) {
+        if (count > 0) {
+            ss << ",";
+        }
+        if
+            constexpr(std::is_class_v<std::decay_t<T>>) {
+                _dump_obj(v, ss);
+            }
+        else {
+            ss << v;
+        }
+        count += 1;
+    }
+    ss << "]";
 }
 
 template <typename T>
